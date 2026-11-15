@@ -1,0 +1,32 @@
+# --- Secrets / local config -------------------------------------------
+# .env holds DB credentials. .env.example is committed instead.
+.env
+
+# --- Python -----------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- Generated experiment output --------------------------------------
+# These are reproducible by re-running the experiments, and figures are
+# binary files that bloat the repo history. Commit the final versions you
+# actually use in the report manually if you want them tracked.
+analysis/figures/
+analysis/exports/
+*.csv
+!requirements.txt
+
+# --- Editors / OS -----------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Docker volumes / logs --------------------------------------------
+pgdata/
+*.log

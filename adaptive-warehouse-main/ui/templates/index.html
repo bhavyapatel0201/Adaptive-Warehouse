@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive Sales Warehouse — Live Dashboard</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a212b; --panel2:#222b38; --line:#2d3846;
+    --text:#e6edf3; --muted:#8b98a9; --accent:#4C9AFF; --good:#3FB950;
+    --warn:#D29922; --bad:#F85149; --mono:'SF Mono',Consolas,'Courier New',monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       font-size:14px;line-height:1.5}
+  header{padding:18px 26px;border-bottom:1px solid var(--line);
+         background:var(--panel);display:flex;align-items:center;
+         justify-content:space-between;flex-wrap:wrap;gap:12px}
+  header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.2px}
+  header .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+       margin-right:7px;vertical-align:middle}
+  .dot.on{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .dot.off{background:var(--bad)}
+  .dot.busy{background:var(--warn);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  main{padding:22px 26px;display:grid;gap:20px;
+       grid-template-columns:repeat(auto-fit,minmax(430px,1fr));max-width:1700px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+        padding:18px 20px;overflow:hidden}
+  .card h2{margin:0 0 4px;font-size:13px;text-transform:uppercase;
+           letter-spacing:.9px;color:var(--muted);font-weight:600}
+  .card .hint{color:var(--muted);font-size:12px;margin:0 0 14px}
+  .wide{grid-column:1/-1}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;
+     text-transform:uppercase;letter-spacing:.5px;padding:7px 10px;
+     border-bottom:1px solid var(--line)}
+  td{padding:7px 10px;border-bottom:1px solid rgba(45,56,70,.5)}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--panel2)}
+  .mono{font-family:var(--mono);font-size:12px}
+  .num{text-align:right;font-family:var(--mono)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:11px;font-size:11px;
+        font-weight:600}
+  .pill.static{background:rgba(76,154,255,.15);color:var(--accent)}
+  .pill.adaptive{background:rgba(210,153,34,.16);color:var(--warn)}
+  .pill.ok{background:rgba(63,185,80,.15);color:var(--good)}
+  .pill.bad{background:rgba(248,81,73,.15);color:var(--bad)}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .fld{display:flex;flex-direction:column;gap:5px}
+  .fld label{font-size:11px;color:var(--muted);text-transform:uppercase;
+             letter-spacing:.5px}
+  select,input{background:var(--panel2);color:var(--text);
+               border:1px solid var(--line);border-radius:6px;padding:8px 10px;
+               font-size:13px;font-family:inherit}
+  button{background:var(--accent);color:#04121f;border:none;border-radius:6px;
+         padding:9px 17px;font-size:13px;font-weight:600;cursor:pointer;
+         font-family:inherit}
+  button:hover{filter:brightness(1.1)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.ghost{background:transparent;color:var(--muted);
+               border:1px solid var(--line)}
+  button.ghost:hover{color:var(--text);border-color:var(--muted);filter:none}
+  button.reset-frontier{background:transparent;color:var(--good);
+                        border:1px solid var(--good)}
+  button.reset-frontier:hover{background:rgba(63,185,80,.12);filter:none}
+  #log{background:#0a0e13;border:1px solid var(--line);border-radius:7px;
+       padding:13px;height:230px;overflow-y:auto;font-family:var(--mono);
+       font-size:12px;line-height:1.65;white-space:pre-wrap;margin-top:14px}
+  #log .built{color:var(--good)}
+  #log .part{color:var(--accent)}
+  #log .warnl{color:var(--warn)}
+  #log .errl{color:var(--bad)}
+  .bar{height:7px;border-radius:4px;background:var(--panel2);overflow:hidden;
+       min-width:70px}
+  .bar>span{display:block;height:100%;border-radius:4px}
+  .kpi{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:6px}
+  .kpi div span{display:block;font-size:11px;color:var(--muted);
+                text-transform:uppercase;letter-spacing:.5px}
+  .kpi div strong{font-size:22px;font-weight:600;font-family:var(--mono)}
+  .alert{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.35);
+         color:#ffb4ae;border-radius:7px;padding:10px 13px;font-size:12.5px;
+         margin-bottom:12px}
+  .empty{color:var(--muted);font-size:13px;padding:14px 0;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Adaptive Sales Warehouse</h1>
+    <div class="sub">Workload-aware indexing &amp; partition optimization · PostgreSQL 16</div>
+  </div>
+  <div class="mono" style="font-size:12px">
+    <span id="dbdot" class="dot off"></span><span id="dbtext">connecting…</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- ---------------- run control ---------------- -->
+  <section class="card wide">
+    <h2>Run an experiment</h2>
+    {% if read_only %}
+    <div class="alert" style="background:rgba(76,154,255,.1);border-color:rgba(76,154,255,.35);color:#a9cbff">
+      <b>Read-only deployment.</b> This hosted instance displays results
+      collected from local experiment runs. Running new experiments requires
+      the full local dashboard, because the adaptive engine needs
+      <code>pg_stat_statements</code> and sustained background execution that
+      free hosting tiers don't provide.
+    </div>
+    {% else %}
+    <p class="hint">Drives the same code path as the CLI. Watch the adaptive engine react in the log below.</p>
+    <div class="controls">
+      <div class="fld">
+        <label>Configuration</label>
+        <select id="cfg">
+          {% for c in configs %}
+          <option value="{{ c.config_id }}">{{ c.config_id }} — {{ c.workload }} / ETL {{ c.etl_rate }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label>Mode</label>
+        <select id="mode">
+          <option value="static">static (baseline)</option>
+          <option value="adaptive">adaptive</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>Duration (s)</label>
+        <input id="secs" type="number" value="40" min="5" max="300" style="width:95px">
+      </div>
+      <button id="runbtn" onclick="startRun()">Run</button>
+      <button class="reset-frontier" onclick="doReset('frontier')"
+              title="Drops adaptive indexes, removes post-baseline rows and partitions, and trims ETL rows — puts the warehouse back to a clean pre-demo state.">
+        ⟲ Reset to clean frontier
+      </button>
+      <button class="ghost" onclick="doReset('results')">Clear results</button>
+      <button class="ghost" onclick="doReset('indexes')">Drop adaptive indexes</button>
+      <button class="ghost" onclick="doReset('data')">Trim ETL rows</button>
+    </div>
+    <div id="warnbox"></div>
+    <div id="log">Ready.</div>
+    {% endif %}
+  </section>
+
+  <!-- ---------------- partitions ---------------- -->
+  <section class="card">
+    <h2>Partition layout</h2>
+    <p class="hint">Rows in the DEFAULT partition block creating the partition they belong in.</p>
+    <div class="kpi">
+      <div><span>Total rows</span><strong id="kTotal">—</strong></div>
+      <div><span>Stranded in DEFAULT</span><strong id="kStranded">—</strong></div>
+    </div>
+    <div id="strandWarn"></div>
+    <table>
+      <thead><tr><th>Partition</th><th class="num">Rows</th><th class="num">Size</th></tr></thead>
+      <tbody id="parts"></tbody>
+    </table>
+  </section>
+
+  <!-- ---------------- adaptive indexes ---------------- -->
+  <section class="card">
+    <h2>Adaptive indexes</h2>
+    <p class="hint">Built at runtime by the engine. Empty means the physical design is at its static baseline.</p>
+    <table>
+      <thead><tr><th>Index</th><th>Table</th><th class="num">Scans</th><th class="num">Size</th></tr></thead>
+      <tbody id="idxs"></tbody>
+    </table>
+  </section>
+
+  <!-- ---------------- per-query ---------------- -->
+  <section class="card wide">
+    <h2>Per-query: static vs adaptive</h2>
+    <p class="hint">The headline result. Selective drill-downs should gain substantially; broad rollups should sit near zero — a full scan is already optimal for those.</p>
+    <table>
+      <thead><tr>
+        <th>Query</th><th class="num">Static (ms)</th><th class="num">Adaptive (ms)</th>
+        <th class="num">Change</th><th style="width:32%">&nbsp;</th>
+      </tr></thead>
+      <tbody id="perq"></tbody>
+    </table>
+  </section>
+
+  <!-- ---------------- actions ---------------- -->
+  <section class="card">
+    <h2>Adaptation log</h2>
+    <p class="hint">Every decision the engine made, and what it cost.</p>
+    <table>
+      <thead><tr><th>Time</th><th>Action</th><th>Target</th><th class="num">ms</th></tr></thead>
+      <tbody id="acts"></tbody>
+    </table>
+  </section>
+
+  <!-- ---------------- summary ---------------- -->
+  <section class="card">
+    <h2>Runs recorded</h2>
+    <p class="hint">Latency distribution per configuration.</p>
+    <table>
+      <thead><tr>
+        <th>Config</th><th>Mode</th><th class="num">n</th>
+        <th class="num">Median</th><th class="num">p95</th>
+      </tr></thead>
+      <tbody id="summ"></tbody>
+    </table>
+  </section>
+
+</main>
+
+<script>
+let resetBusy = false;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+async function getJSON(u, o){ const r = await fetch(u, o); return r.json(); }
+
+/* ---------- status ---------- */
+async function refreshStatus(){
+  let d;
+  try { d = await getJSON('/api/status'); }
+  catch(e){ $('dbdot').className='dot off'; $('dbtext').textContent='backend unreachable'; return; }
+
+  if(!d.ok){ $('dbdot').className='dot off'; $('dbtext').textContent='db error'; return; }
+
+  $('dbdot').className = 'dot ' + (d.running ? 'busy' : 'on');
+  $('dbtext').textContent = d.running ? ('running ' + d.run_label) : 'connected';
+
+  $('kTotal').textContent = d.total_rows.toLocaleString();
+  $('kStranded').textContent = d.stranded_rows.toLocaleString();
+  $('kStranded').style.color = d.stranded_rows > 0 ? 'var(--bad)' : 'var(--good)';
+
+  $('strandWarn').innerHTML = d.stranded_rows > 0
+    ? '<div class="alert"><b>' + d.stranded_rows.toLocaleString() + ' rows are stranded in DEFAULT.</b> '
+      + 'PostgreSQL will refuse to create the partitions these belong in until they are drained. '
+      + 'Run an <b>adaptive</b> experiment to recover them.</div>'
+    : '';
+
+  $('parts').innerHTML = d.partitions.map(p => {
+    const dflt = p.is_default;
+    const nm = dflt
+      ? '<span class="pill bad">DEFAULT</span> <span class="mono">'+esc(p.name)+'</span>'
+      : '<span class="mono">'+esc(p.name)+'</span>';
+    const rows = dflt && p.rows > 0
+      ? '<span style="color:var(--bad);font-weight:600">'+p.rows.toLocaleString()+'</span>'
+      : p.rows.toLocaleString();
+    return '<tr><td>'+nm+'</td><td class="num">'+rows+'</td><td class="num mono">'+esc(p.size)+'</td></tr>';
+  }).join('');
+
+  $('idxs').innerHTML = d.adaptive_indexes.length
+    ? d.adaptive_indexes.map(i =>
+        '<tr><td class="mono" style="color:var(--good)">'+esc(i.name)+'</td>'
+        +'<td class="mono">'+esc(i.table_name)+'</td>'
+        +'<td class="num">'+i.scans+'</td>'
+        +'<td class="num mono">'+esc(i.size)+'</td></tr>').join('')
+    : '<tr><td colspan="4" class="empty">No adaptive indexes — physical design is at the static baseline.</td></tr>';
+}
+
+/* ---------- results ---------- */
+async function refreshResults(){
+  let d;
+  try { d = await getJSON('/api/results'); } catch(e){ return; }
+
+  $('perq').innerHTML = d.per_query.length
+    ? d.per_query.map(q => {
+        const v = q.improve_pct === null ? 0 : Number(q.improve_pct);
+        const good = v >= 0;
+        const w = Math.min(Math.abs(v), 100);
+        return '<tr><td class="mono">'+esc(q.query_name)+'</td>'
+          +'<td class="num">'+q.static_ms+'</td>'
+          +'<td class="num">'+q.adaptive_ms+'</td>'
+          +'<td class="num" style="color:'+(good?'var(--good)':'var(--bad)')+';font-weight:600">'
+            +(good?'+':'')+v.toFixed(1)+'%</td>'
+          +'<td><div class="bar"><span style="width:'+w+'%;background:'
+            +(good?'var(--good)':'var(--bad)')+'"></span></div></td></tr>';
+      }).join('')
+    : '<tr><td colspan="5" class="empty">Run the same config in <b>static</b> then <b>adaptive</b> mode to populate this comparison.</td></tr>';
+
+  $('acts').innerHTML = d.actions.length
+    ? d.actions.map(a => {
+        let cls = 'ok';
+        if(!a.succeeded) cls = 'bad';
+        else if(a.action_type.indexOf('drain') === 0) cls = 'adaptive';
+        return '<tr><td class="mono">'+esc(a.at)+'</td>'
+          +'<td><span class="pill '+cls+'">'+esc(a.action_type)+'</span></td>'
+          +'<td class="mono">'+esc(a.target)+'</td>'
+          +'<td class="num">'+(a.duration_ms ?? '—')+'</td></tr>';
+      }).join('')
+    : '<tr><td colspan="4" class="empty">No adaptation actions yet.</td></tr>';
+
+  $('summ').innerHTML = d.summary.length
+    ? d.summary.map(s =>
+        '<tr><td class="mono">'+esc(s.config_id)+'</td>'
+        +'<td><span class="pill '+esc(s.mode)+'">'+esc(s.mode)+'</span></td>'
+        +'<td class="num">'+s.samples+'</td>'
+        +'<td class="num">'+s.median_ms+'</td>'
+        +'<td class="num">'+s.p95_ms+'</td></tr>').join('')
+    : '<tr><td colspan="5" class="empty">No runs recorded yet.</td></tr>';
+}
+
+/* ---------- run control ---------- */
+function colourise(line){
+  const l = esc(line);
+  if(/built /.test(line))                       return '<span class="built">'+l+'</span>';
+  if(/provisioned|drained/.test(line))          return '<span class="part">'+l+'</span>';
+  if(/aborted|WARNING|no candidate/.test(line)) return '<span class="warnl">'+l+'</span>';
+  if(/ERROR|error/.test(line))                  return '<span class="errl">'+l+'</span>';
+  return l;
+}
+
+async function startRun(){
+  const body = {config:$('cfg').value, mode:$('mode').value, seconds:Number($('secs').value)};
+  $('warnbox').innerHTML = (body.mode === 'adaptive' && body.seconds < 30)
+    ? '<div class="alert">Short adaptive runs understate the benefit: the engine cannot make its first '
+      +'decision until the poll interval elapses, so most queries run before any index exists. '
+      +'Use 40s or more for numbers worth reporting.</div>'
+    : '';
+  $('runbtn').disabled = true;
+  $('log').textContent = 'starting…';
+  const r = await getJSON('/api/run', {method:'POST',
+              headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if(!r.ok){ $('log').textContent = 'Error: ' + r.error; $('runbtn').disabled = false; }
+}
+
+async function pollLog(){
+  // While a reset is mid-flight the panel shows a "working" message; the
+  // poller must not overwrite it with the previous run's stale output.
+  if(resetBusy) return;
+  if(!$('log')) return;   // read-only deployment: no run controls present
+  let d;
+  try { d = await getJSON('/api/log'); } catch(e){ return; }
+  if(d.log && d.log.length){
+    const box = $('log');
+    const stick = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+    box.innerHTML = d.log.map(colourise).join('\n');
+    if(stick) box.scrollTop = box.scrollHeight;
+  }
+  $('runbtn').disabled = d.running;
+}
+
+async function doReset(what){
+  if(!confirm('Reset: ' + what + '?')) return;
+
+  // A frontier reset runs a VACUUM and can take several seconds. Without an
+  // explicit working state the page looks unchanged and the reset appears to
+  // have done nothing, so lock the controls and say what's happening.
+  const btns = document.querySelectorAll('.controls button');
+  btns.forEach(b => b.disabled = true);
+  $('log').innerHTML = '<span class="warnl">working… ' + esc(what)
+    + ' reset in progress (VACUUM can take a few seconds)</span>';
+  resetBusy = true;
+
+  try{
+    const r = await getJSON('/api/reset', {method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({what})});
+    if(!r.ok) $('log').innerHTML = '<span class="errl">✗ ' + esc(r.error) + '</span>';
+  }catch(e){
+    $('log').innerHTML = '<span class="errl">✗ ' + esc(e) + '</span>';
+  }finally{
+    resetBusy = false;
+    btns.forEach(b => b.disabled = false);
+    refreshStatus(); refreshResults();
+  }
+}
+
+refreshStatus(); refreshResults();
+setInterval(refreshStatus, 2500);
+setInterval(refreshResults, 4000);
+setInterval(pollLog, 1200);
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+# Render Blueprint for the read-only dashboard.
+#
+# This deploys the dashboard as a VIEWER of results. It does not run
+# experiments -- a free hosting tier cannot sustain the background execution
+# the adaptive engine needs, and managed Postgres may not expose
+# pg_stat_statements. Collect results locally, seed them into the Render
+# database once (see scripts/seed_render.py), and the hosted page displays
+# them.
+#
+# To use: push this repo to GitHub, then in Render choose
+# "New +" -> "Blueprint" and point it at the repo.
+
+databases:
+  - name: adaptive-warehouse-db
+    plan: free
+    databaseName: salesdw
+    user: wh
+
+services:
+  - type: web
+    name: adaptive-warehouse-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn ui.app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    envVars:
+      - key: READ_ONLY
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: adaptive-warehouse-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: "3.12.4"
