@@ -5,6 +5,15 @@ optimization** (runtime index creation + partition strategy) beats a **static**
 physical design when OLAP query patterns shift and ETL keeps writing rows
 concurrently.
 
+## Key results
+
+Measured on 500K rows with single 40-second runs per configuration:
+
+- **Selective drill-down queries ran 32-58% faster** with adaptive indexing, including under high concurrent ETL.
+- **Broad rollups stayed flat**, as expected, because a sequential scan is already the optimal plan for them.
+- **Provisioning a partition ahead of time cost about 70 ms.** Draining rows already stranded in the DEFAULT partition cost about 1,700 ms (40-60K rows), roughly 24x more.
+- **In the same C11 run, the static design stranded 25,000 rows in DEFAULT; the adaptive design stranded none.**
+
 
 ## The core experiment
 
