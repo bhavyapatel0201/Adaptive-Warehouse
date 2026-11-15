@@ -64,8 +64,6 @@ makes adaptive indexing worth studying.
 
 ## Quick start
 
-On Windows, run the bash commands below in Git Bash or WSL, or copy the commands from the Makefile.
-
 ### Option A — Docker (recommended for the team)
 
 ```bash
@@ -85,7 +83,7 @@ createdb salesdw   # (and a 'wh' role, or edit .env)
 make setup
 ```
 
-## Running experiments
+## Running experiments (Phase 2)
 
 Once setup is done, you can run the experiment matrix.
 
@@ -131,7 +129,7 @@ At baseline **100% of queries use sequential scans**, because the query pools
 filter on deliberately unindexed dimension columns (`brand`, `country`,
 `quarter`). That is the headroom Phase 3 exploits.
 
-## Running adaptive experiments
+## Running adaptive experiments (Phase 3)
 
 ```bash
 # Static baseline (control group)
@@ -243,7 +241,8 @@ layout*, not just the indexes.
 
 A range-partitioned fact table is defined over fixed boundaries. A
 continuously-ingesting ETL pipeline eventually writes past the newest
-boundary, and those rows fall into the DEFAULT catch-all partition. Three things go wrong, and the third is the one that hurts:
+boundary, and those rows fall into the DEFAULT catch-all partition. The third
+consequence is the one that actually hurts:
 
 1. DEFAULT grows without bound and loses the benefits of partitioning.
 2. Its statistics degrade as it becomes a mixed bag of date ranges.
@@ -354,7 +353,8 @@ partition scenarios are only distinguishable from a clean starting state.
 3. **Reactive recovery.** Without resetting, run **C11 / adaptive / 45s**.
    The engine drains the stranded rows into a proper partition. Note the
    cost against step 1: roughly 400 ms for 24K rows versus 60 ms to have
-   provisioned ahead — and drain cost scales with the number of stranded rows (about 1,700 ms at 40-60K rows, see the table above), so the gap widens the longer the problem goes unnoticed.
+   provisioned ahead — and recovery cost grows with how long the problem
+   went unnoticed.
 4. **Query improvement.** Reset, run **C5 / static / 45s**, reset again, then
    **C5 / adaptive / 45s** to populate the per-query table and show the
    selective-vs-broad split.
@@ -385,7 +385,7 @@ figures and CSVs generate.
 Every check resets the physical design and table size first — a test that
 only passes from a lucky starting state is not a test.
 
-## Producing report results
+## Producing report results (Phase 4)
 
 ### Run the full matrix
 
@@ -469,29 +469,29 @@ adaptive-warehouse/
 ├── src/
 │   ├── config.py              # connection + scale + experiment matrix + tuning
 │   ├── db.py                  # psycopg2 helpers
-│   ├── data_gen/generate.py   # synthetic TPC-DS-shaped data loader
+│   ├── data_gen/generate.py   # ✅ synthetic TPC-DS-shaped data loader
 │   ├── workload/
-│   │   ├── queries.py         # 3 query pools (product/customer/temporal)
-│   │   └── generator.py       # runs queries, measures via EXPLAIN ANALYZE
-│   ├── etl/injector.py        # concurrent ETL at 4 configurable rates
+│   │   ├── queries.py         # ✅ 3 query pools (product/customer/temporal)
+│   │   └── generator.py       # ✅ runs queries, measures via EXPLAIN ANALYZE
+│   ├── etl/injector.py        # ✅ concurrent ETL at 4 configurable rates
 │   ├── adaptive/
-│   │   ├── monitor.py          # reads pg_stat_statements, ranks candidates
-│   │   ├── executor.py         # guarded, partition-aware concurrent DDL
-│   │   ├── partitions.py       # adaptive partition provisioning + drain
-│   │   └── engine.py           # closed monitor→decide→act loop (thread)
+│   │   ├── monitor.py          # ✅ reads pg_stat_statements, ranks candidates
+│   │   ├── executor.py         # ✅ guarded, partition-aware concurrent DDL
+│   │   ├── partitions.py       # ✅ adaptive partition provisioning + drain
+│   │   └── engine.py           # ✅ closed monitor→decide→act loop (thread)
 │   └── harness/
-│       ├── run_experiment.py  # orchestrates the 12-config matrix
-│       ├── report.py          # summary + static-vs-adaptive + per-query
-│       ├── reset_results.py   # clear results between trial runs
-│       ├── reset_data.py      # trim ETL-injected rows + VACUUM
-│       ├── run_matrix.py      # full 12x2 matrix with reset discipline
-│       └── acceptance.py      # end-to-end pass/fail validation suite
+│       ├── run_experiment.py  # ✅ orchestrates the 12-config matrix
+│       ├── report.py          # ✅ summary + static-vs-adaptive + per-query
+│       ├── reset_results.py   # ✅ clear results between trial runs
+│       ├── reset_data.py      # ✅ trim ETL-injected rows + VACUUM
+│       ├── run_matrix.py      # ✅ full 12x2 matrix with reset discipline
+│       └── acceptance.py      # ✅ end-to-end pass/fail validation suite
 ├── analysis/
-│   ├── plots.py               # report figures (Matplotlib)
-│   └── export_csv.py          # CSV exports for report tables
+│   ├── plots.py               # ✅ report figures (Matplotlib)
+│   └── export_csv.py          # ✅ CSV exports for report tables
 └── ui/
-    ├── app.py                 # Flask dashboard backend
-    └── templates/index.html   # live dashboard page
+    ├── app.py                 # ✅ Flask dashboard backend
+    └── templates/index.html   # ✅ live dashboard page
 ```
 
 ## Roadmap
